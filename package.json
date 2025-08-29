@@ -13,10 +13,10 @@
     "type": "git",
     "url": "git+https://github.com/devmunro/otterpocket.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
+  "keywords": ["react", "state", "state-management", "otterpocket"],
+  "author": "David Munro",
+  "license": "MIT",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/devmunro/otterpocket/issues"
   },
