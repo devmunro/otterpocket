@@ -1,0 +1,29 @@
+# Node dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Vite / React dev files
+.vite/
+*.log
+
+# Local environment variables
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Npm debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Playground specific (optional)
+my-app/node_modules/
+my-app/dist/
+my-app/.env
