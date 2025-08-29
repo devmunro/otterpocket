@@ -1,5 +1,7 @@
 # 🦦 OtterPocket
 
+![output](https://github.com/user-attachments/assets/015a782b-4ecd-4c64-937a-7ee1a989abdf)
+
 OtterPocket is a **super simple and beginner-friendly state management library for React**.  
 It lets you manage state with **counters, lists, toggles, and more** — no Redux, no boilerplate. Perfect for **learning, teaching, or small projects**.
 
@@ -16,8 +18,6 @@ It lets you manage state with **counters, lists, toggles, and more** — no Redu
   - ❌ `remove(key, indexOrPredicate)` — remove an item from an array  
   - 🔄 `reset(key)` — reset a key to its initial value  
   - 🏁 `resetAll()` — reset **all keys** to their initial values  
-- 💾 Optional localStorage persistence  
-- 🐟 Fun and beginner-friendly for demos  
 
 ---
 
@@ -25,6 +25,8 @@ It lets you manage state with **counters, lists, toggles, and more** — no Redu
 
 ```bash
 npm install otterpocket
+```
+```
 yarn add otterpocket
 ```
 
@@ -32,7 +34,7 @@ yarn add otterpocket
 
 ## 🚀 Basic Usage
 
-```
+```Javascript
 import React from "react";
 import { createPocket } from "otterpocket";
 
