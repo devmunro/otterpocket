@@ -1,113 +1,165 @@
-import React, {
-  useSyncExternalStore,
-  useRef,
-  useEffect,
-  useState,
-} from "react";
+import { useSyncExternalStore } from "react";
 
-function shallowEqual(a, b) {
-  if (a === b) return true;
-
-  if (
-    typeof a !== "object" ||
-    a === null ||
-    typeof b !== "object" ||
-    b === null
-  ) {
-    return false;
-  }
-
-  // Handle arrays
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      if (a[i] !== b[i]) return false;
-    }
-    return true;
-  }
-
-  // Handle plain objects
-  const keysA = Object.keys(a);
-  const keysB = Object.keys(b);
-
-  if (keysA.length !== keysB.length) return false;
-
-  for (let key of keysA) {
-    if (!(key in b) || a[key] !== b[key]) return false;
-  }
-
-  return true;
+function cloneInitialState(initialState) {
+  return { ...initialState };
 }
 
-// OtterPocket Core
-export function createPocket(initialState = {}) {
-  let state = { ...initialState };
-  const listeners = new Set();
+function getKeyListenerSet(keyListeners, key) {
+  if (!keyListeners.has(key)) {
+    keyListeners.set(key, new Set());
+  }
 
-  // Notify all subscribers
-  const notify = (key) => {
-    listeners.forEach((cb) => cb(state[key]));
-    console.log(`🦦 [OtterPocket] ${key} →`, state[key]);
+  return keyListeners.get(key);
+}
+
+function resolveNextValue(currentValue, nextValue) {
+  return typeof nextValue === "function" ? nextValue(currentValue) : nextValue;
+}
+
+export function createPocket(initialState = {}, options = {}) {
+  const config =
+    options && typeof options === "object" ? { debug: false, ...options } : { debug: false };
+
+  const initialSnapshot = cloneInitialState(initialState);
+  let state = cloneInitialState(initialSnapshot);
+  const keyListeners = new Map();
+  const storeListeners = new Set();
+
+  const getState = () => state;
+
+  const emitChange = (changedKeys, previousState) => {
+    if (changedKeys.length === 0) {
+      return;
+    }
+
+    const listenersToNotify = new Set(storeListeners);
+
+    for (const key of changedKeys) {
+      const listeners = keyListeners.get(key);
+
+      if (!listeners) {
+        continue;
+      }
+
+      for (const listener of listeners) {
+        listenersToNotify.add(listener);
+      }
+    }
+
+    for (const listener of listenersToNotify) {
+      listener(state, previousState, changedKeys);
+    }
+
+    if (config.debug) {
+      for (const key of changedKeys) {
+        console.log(`[OtterPocket] ${String(key)} ->`, state[key]);
+      }
+    }
   };
 
-  // Get value
+  const subscribe = (listener, key) => {
+    if (typeof listener !== "function") {
+      throw new TypeError("OtterPocket subscribe() expects a function listener.");
+    }
+
+    if (typeof key === "undefined") {
+      storeListeners.add(listener);
+      return () => {
+        storeListeners.delete(listener);
+      };
+    }
+
+    const listeners = getKeyListenerSet(keyListeners, key);
+    listeners.add(listener);
+
+    return () => {
+      listeners.delete(listener);
+
+      if (listeners.size === 0) {
+        keyListeners.delete(key);
+      }
+    };
+  };
+
   const get = (key) => state[key];
 
-  // Set value
-  const set = (key, value) => {
-    state[key] = value;
-    notify(key);
-  };
+  const set = (key, nextValue) => {
+    const resolvedValue = resolveNextValue(state[key], nextValue);
 
-  // Use hook
-  const use = (key) => {
-    const lastSelectedRef = useRef(state[key]);
-    const [, setValue] = useState(state[key]);
+    if (Object.is(state[key], resolvedValue)) {
+      return state[key];
+    }
 
-    useEffect(() => {
-      const callback = (val) => {
-        if (!shallowEqual(lastSelectedRef.current, val)) {
-          lastSelectedRef.current = val;
-          setValue(val);
-        }
-      };
-      listeners.add(callback);
-      return () => listeners.delete(callback);
-    }, [key]);
+    const previousState = state;
+    state = {
+      ...state,
+      [key]: resolvedValue,
+    };
 
+    emitChange([key], previousState);
     return state[key];
   };
 
-  // Sugar helpers
-  const toggle = (key) => set(key, !state[key]);
-  const inc = (key) => set(key, (state[key] || 0) + 1);
-  const dec = (key) => set(key, (state[key] || 0) - 1);
-  const push = (key, item) => set(key, [...(state[key] || []), item]);
-  const remove = (key, indexOrPredicate) => {
-    const arr = Array.isArray(state[key]) ? [...state[key]] : [];
-    if (typeof indexOrPredicate === "function") {
-      set(
-        key,
-        arr.filter((i) => !indexOrPredicate(i))
-      );
-    } else {
-      arr.splice(indexOrPredicate, 1);
-      set(key, arr);
-    }
-  };
-  const reset = (key) => set(key, initialState[key]);
-  const resetAll = () =>
-    Object.keys(initialState).forEach((k) => set(k, initialState[k]));
+  const setState = (nextState) => {
+    const resolvedState = resolveNextValue(state, nextState);
 
-  
+    if (
+      resolvedState === null ||
+      typeof resolvedState !== "object" ||
+      Array.isArray(resolvedState)
+    ) {
+      throw new TypeError("OtterPocket setState() expects an object or updater function.");
+    }
+
+    const nextSnapshot = { ...state, ...resolvedState };
+    const changedKeys = Object.keys(nextSnapshot).filter(
+      (key) => !Object.is(state[key], nextSnapshot[key])
+    );
+
+    if (changedKeys.length === 0) {
+      return state;
+    }
+
+    const previousState = state;
+    state = nextSnapshot;
+    emitChange(changedKeys, previousState);
+
+    return state;
+  };
+
+  const use = (key) =>
+    useSyncExternalStore(
+      (listener) => subscribe(listener, key),
+      () => state[key],
+      () => state[key]
+    );
+
+  const toggle = (key) => set(key, (currentValue) => !currentValue);
+  const inc = (key) => set(key, (currentValue = 0) => currentValue + 1);
+  const dec = (key) => set(key, (currentValue = 0) => currentValue - 1);
+  const push = (key, item) =>
+    set(key, (currentValue = []) => [...(Array.isArray(currentValue) ? currentValue : []), item]);
+  const remove = (key, indexOrPredicate) =>
+    set(key, (currentValue = []) => {
+      const arrayValue = Array.isArray(currentValue) ? [...currentValue] : [];
+
+      if (typeof indexOrPredicate === "function") {
+        return arrayValue.filter((item, index) => !indexOrPredicate(item, index));
+      }
+
+      arrayValue.splice(indexOrPredicate, 1);
+      return arrayValue;
+    });
+  const reset = (key) => set(key, initialSnapshot[key]);
+  const resetAll = () => setState(initialSnapshot);
+
   return {
     get,
+    getState,
     set,
+    setState,
     use,
-    subscribe: (cb) => {
-      listeners.add(cb);
-      return () => listeners.delete(cb);
-    },
+    subscribe,
     toggle,
     inc,
     dec,
