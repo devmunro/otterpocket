@@ -1,13 +1,12 @@
 # OtterPocket
 
 ![otter](https://github.com/user-attachments/assets/dab30de0-2cbe-4b63-b2b0-a22079855907)
-<p align="center">
-  Small, friendly React state management with a tiny API, useful helpers, selectors, and optional persistence.
-</p>
+
+Small, friendly React state management with a tiny API, useful helpers, selectors, and optional persistence.
+
 
 
 OtterPocket is for app and UI state that should feel simple to read and simple to update.
-C:\Users\jerry\Documents\MAIN\otterpocket\otterweb\src\assets\otter.jpg
 Use it for:
 
 - counters
