@@ -1,0 +1,21 @@
+{
+  "name": "OtterPocket",
+  "short_name": "OtterPocket",
+  "description": "A small React state library for app and UI state.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#edf7f9",
+  "theme_color": "#102f43",
+  "icons": [
+    {
+      "src": "/favicon.jpg",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.jpg",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
