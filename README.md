@@ -1,15 +1,13 @@
 # OtterPocket
 
-<p align="center">
-  <img src="./otterweb/src/assets/otter.jpg" alt="OtterPocket otter" width="320" />
-</p>
-
+![otter](https://github.com/user-attachments/assets/dab30de0-2cbe-4b63-b2b0-a22079855907)
 <p align="center">
   Small, friendly React state management with a tiny API, useful helpers, selectors, and optional persistence.
 </p>
 
-OtterPocket is for app and UI state that should feel simple to read and simple to update.
 
+OtterPocket is for app and UI state that should feel simple to read and simple to update.
+C:\Users\jerry\Documents\MAIN\otterpocket\otterweb\src\assets\otter.jpg
 Use it for:
 
 - counters
@@ -24,7 +22,7 @@ It aims to feel lighter than Redux and more guided than lower-level stores.
 ## Install
 
 ```bash
-npm install otterpocket react
+npm install otterpocket
 ```
 
 ## Quick Example
