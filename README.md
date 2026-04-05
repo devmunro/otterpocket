@@ -1,4 +1,4 @@
-# OtterPocket
+# 🦦 OtterPocket
 
 ![otter](https://github.com/user-attachments/assets/dab30de0-2cbe-4b63-b2b0-a22079855907)
 
