@@ -4,9 +4,26 @@ export type PocketUpdater<TValue> = TValue | ((currentValue: TValue) => TValue);
 export type PocketStateUpdater<TState extends PocketState> =
   | Partial<TState>
   | ((currentState: Readonly<TState>) => Partial<TState>);
+export type PocketSelector<TState extends PocketState, TSelected> = (
+  state: Readonly<TState>
+) => TSelected;
+export type PocketEqualityFn<TValue> = (left: TValue, right: TValue) => boolean;
 
-export interface PocketOptions {
+export interface PocketStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem?(key: string): void;
+}
+
+export interface PocketPersistOptions<TState extends PocketState> {
+  key: string;
+  storage?: PocketStorage;
+  partialize?: (state: Readonly<TState>) => Partial<TState>;
+}
+
+export interface PocketOptions<TState extends PocketState = PocketState> {
   debug?: boolean;
+  persist?: PocketPersistOptions<TState>;
 }
 
 export type PocketListener<TState extends PocketState> = (
@@ -15,12 +32,29 @@ export type PocketListener<TState extends PocketState> = (
   changedKeys: PocketKey<TState>[]
 ) => void;
 
+export interface SelectorSubscriptionOptions<TState extends PocketState, TSelected> {
+  equalityFn?: PocketEqualityFn<TSelected>;
+  selector: PocketSelector<TState, TSelected>;
+}
+
 export interface PocketStore<TState extends PocketState> {
   get<K extends PocketKey<TState>>(key: K): TState[K];
   getState(): Readonly<TState>;
+  getSelected<TSelected>(selector: PocketSelector<TState, TSelected>): TSelected;
   set<K extends PocketKey<TState>>(key: K, nextValue: PocketUpdater<TState[K]>): TState[K];
   setState(nextState: PocketStateUpdater<TState>): Readonly<TState>;
   subscribe(listener: PocketListener<TState>, key?: PocketKey<TState>): () => void;
+  subscribeToSelector<TSelected>(
+    selector: PocketSelector<TState, TSelected>,
+    listener: (
+      selectedValue: TSelected,
+      previousSelectedValue: TSelected,
+      state: Readonly<TState>,
+      previousState: Readonly<TState>,
+      changedKeys: PocketKey<TState>[]
+    ) => void,
+    equalityFn?: PocketEqualityFn<TSelected>
+  ): () => void;
   toggle<K extends PocketKey<TState>>(key: K): TState[K];
   inc<K extends PocketKey<TState>>(key: K): TState[K];
   dec<K extends PocketKey<TState>>(key: K): TState[K];
@@ -32,6 +66,8 @@ export interface PocketStore<TState extends PocketState> {
   reset<K extends PocketKey<TState>>(key: K): TState[K];
   resetAll(): Readonly<TState>;
 }
+
+const defaultEqualityFn = <TValue>(left: TValue, right: TValue) => Object.is(left, right);
 
 function cloneInitialState<TState extends PocketState>(initialState: TState): TState {
   return { ...initialState };
@@ -54,22 +90,98 @@ function resolveNextValue<TValue>(currentValue: TValue, nextValue: PocketUpdater
     : nextValue;
 }
 
+function resolveStorage(storage?: PocketStorage) {
+  if (storage) {
+    return storage;
+  }
+
+  if (typeof window !== "undefined" && window.localStorage) {
+    return window.localStorage;
+  }
+
+  return undefined;
+}
+
+function mergePersistedState<TState extends PocketState>(
+  initialState: TState,
+  persistOptions?: PocketPersistOptions<TState>
+) {
+  if (!persistOptions) {
+    return cloneInitialState(initialState);
+  }
+
+  const storage = resolveStorage(persistOptions.storage);
+
+  if (!storage) {
+    return cloneInitialState(initialState);
+  }
+
+  try {
+    const storedValue = storage.getItem(persistOptions.key);
+
+    if (!storedValue) {
+      return cloneInitialState(initialState);
+    }
+
+    const parsedValue = JSON.parse(storedValue);
+
+    if (parsedValue === null || typeof parsedValue !== "object" || Array.isArray(parsedValue)) {
+      return cloneInitialState(initialState);
+    }
+
+    return {
+      ...initialState,
+      ...parsedValue,
+    };
+  } catch {
+    return cloneInitialState(initialState);
+  }
+}
+
+function persistState<TState extends PocketState>(
+  state: Readonly<TState>,
+  persistOptions?: PocketPersistOptions<TState>
+) {
+  if (!persistOptions) {
+    return;
+  }
+
+  const storage = resolveStorage(persistOptions.storage);
+
+  if (!storage) {
+    return;
+  }
+
+  const serializedState = persistOptions.partialize
+    ? persistOptions.partialize(state)
+    : state;
+
+  try {
+    storage.setItem(persistOptions.key, JSON.stringify(serializedState));
+  } catch {
+    // Ignore storage failures so the store still works in restricted environments.
+  }
+}
+
 export function createPocketStore<TState extends PocketState>(
   initialState: TState,
-  options: PocketOptions = {}
+  options: PocketOptions<TState> = {}
 ): PocketStore<TState> {
   const config = { debug: false, ...options };
   const initialSnapshot = cloneInitialState(initialState);
-  let state = cloneInitialState(initialSnapshot);
+  let state = mergePersistedState(initialSnapshot, config.persist);
   const keyListeners = new Map<PocketKey<TState>, Set<PocketListener<TState>>>();
   const storeListeners = new Set<PocketListener<TState>>();
 
   const getState = () => state as Readonly<TState>;
+  const getSelected = <TSelected>(selector: PocketSelector<TState, TSelected>) => selector(state);
 
   const emitChange = (changedKeys: PocketKey<TState>[], previousState: TState) => {
     if (changedKeys.length === 0) {
       return;
     }
+
+    persistState(state, config.persist);
 
     const listenersToNotify = new Set(storeListeners);
 
@@ -118,6 +230,32 @@ export function createPocketStore<TState extends PocketState>(
         keyListeners.delete(key);
       }
     };
+  };
+
+  const subscribeToSelector = <TSelected>(
+    selector: PocketSelector<TState, TSelected>,
+    listener: (
+      selectedValue: TSelected,
+      previousSelectedValue: TSelected,
+      state: Readonly<TState>,
+      previousState: Readonly<TState>,
+      changedKeys: PocketKey<TState>[]
+    ) => void,
+    equalityFn: PocketEqualityFn<TSelected> = defaultEqualityFn
+  ) => {
+    let currentSelected = selector(state);
+
+    return subscribe((nextState, previousState, changedKeys) => {
+      const nextSelected = selector(nextState);
+
+      if (equalityFn(currentSelected, nextSelected)) {
+        return;
+      }
+
+      const previousSelected = currentSelected;
+      currentSelected = nextSelected;
+      listener(nextSelected, previousSelected, nextState, previousState, changedKeys);
+    });
   };
 
   const get = <K extends PocketKey<TState>>(key: K) => state[key];
@@ -174,10 +312,16 @@ export function createPocketStore<TState extends PocketState>(
     set(key, ((currentValue: TState[K]) => !currentValue) as PocketUpdater<TState[K]>);
 
   const inc = <K extends PocketKey<TState>>(key: K) =>
-    set(key, ((currentValue: TState[K]) => (Number(currentValue ?? 0) + 1) as TState[K]) as PocketUpdater<TState[K]>);
+    set(
+      key,
+      ((currentValue: TState[K]) => (Number(currentValue ?? 0) + 1) as TState[K]) as PocketUpdater<TState[K]>
+    );
 
   const dec = <K extends PocketKey<TState>>(key: K) =>
-    set(key, ((currentValue: TState[K]) => (Number(currentValue ?? 0) - 1) as TState[K]) as PocketUpdater<TState[K]>);
+    set(
+      key,
+      ((currentValue: TState[K]) => (Number(currentValue ?? 0) - 1) as TState[K]) as PocketUpdater<TState[K]>
+    );
 
   const push = <K extends PocketKey<TState>>(key: K, item: unknown) =>
     set(
@@ -210,9 +354,11 @@ export function createPocketStore<TState extends PocketState>(
   return {
     get,
     getState,
+    getSelected,
     set,
     setState,
     subscribe,
+    subscribeToSelector,
     toggle,
     inc,
     dec,
@@ -220,5 +366,15 @@ export function createPocketStore<TState extends PocketState>(
     remove,
     reset,
     resetAll,
+  };
+}
+
+export function persist<TState extends PocketState>(
+  key: string,
+  options: Omit<PocketPersistOptions<TState>, "key"> = {}
+): PocketPersistOptions<TState> {
+  return {
+    key,
+    ...options,
   };
 }

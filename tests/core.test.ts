@@ -1,7 +1,23 @@
 // @ts-nocheck
 import assert from "node:assert/strict";
 
-import { createPocketStore } from "../src/core.js";
+import { createPocketStore, persist } from "../src/core.js";
+
+function createMemoryStorage() {
+  const data = new Map();
+
+  return {
+    getItem(key) {
+      return data.has(key) ? data.get(key) : null;
+    },
+    setItem(key, value) {
+      data.set(key, value);
+    },
+    removeItem(key) {
+      data.delete(key);
+    },
+  };
+}
 
 function runTest(name, callback) {
   try {
@@ -70,4 +86,70 @@ runTest("helpers update and reset state predictably", () => {
   assert.equal(pocket.get("count"), 2);
   assert.equal(pocket.get("darkMode"), false);
   assert.deepEqual(pocket.get("todos"), ["shell", "stone"]);
+});
+
+runTest("selector subscriptions only fire when the selected value changes", () => {
+  const pocket = createPocketStore({
+    count: 0,
+    darkMode: false,
+    todos: [],
+  });
+  let selectorHits = 0;
+
+  const stop = pocket.subscribeToSelector(
+    (state) => state.count > 0,
+    (selectedValue, previousValue) => {
+      selectorHits += 1;
+      assert.equal(previousValue, false);
+      assert.equal(selectedValue, true);
+    }
+  );
+
+  pocket.push("todos", "shell");
+  pocket.inc("count");
+  pocket.inc("count");
+
+  stop();
+
+  assert.equal(selectorHits, 1);
+});
+
+runTest("persist hydrates state and writes updates back to storage", () => {
+  const storage = createMemoryStorage();
+  storage.setItem(
+    "otter-pocket-demo",
+    JSON.stringify({
+      count: 4,
+      darkMode: true,
+    })
+  );
+
+  const pocket = createPocketStore(
+    {
+      count: 0,
+      darkMode: false,
+      todos: [],
+    },
+    {
+      persist: persist("otter-pocket-demo", {
+        storage,
+        partialize: (state) => ({
+          count: state.count,
+          darkMode: state.darkMode,
+        }),
+      }),
+    }
+  );
+
+  assert.equal(pocket.get("count"), 4);
+  assert.equal(pocket.get("darkMode"), true);
+  assert.deepEqual(pocket.get("todos"), []);
+
+  pocket.push("todos", "kelp");
+  pocket.inc("count");
+
+  assert.deepEqual(JSON.parse(storage.getItem("otter-pocket-demo")), {
+    count: 5,
+    darkMode: true,
+  });
 });

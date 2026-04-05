@@ -36,6 +36,8 @@
     "state",
     "state-management",
     "store",
+    "persist",
+    "selectors",
     "zustand-alternative",
     "otterpocket"
   ],
