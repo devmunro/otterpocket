@@ -1,22 +1,46 @@
 {
   "name": "otterpocket",
   "version": "1.0.0",
-  "description": "",
-  "main": "src/OtterPocket.js",
+  "description": "A small, friendly React state library with guided helper methods.",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./core": {
+      "types": "./dist/src/core.d.ts",
+      "import": "./dist/src/core.js"
+    }
+  },
   "files": [
-    "src"
+    "dist/src",
+    "README.md",
+    "LICENSE"
   ],
+  "sideEffects": false,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "prepack": "npm run build",
+    "test": "npm run build && node dist/tests/core.test.js"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/devmunro/otterpocket.git"
   },
-  "keywords": ["react", "state", "state-management", "otterpocket"],
+  "keywords": [
+    "react",
+    "state",
+    "state-management",
+    "store",
+    "zustand-alternative",
+    "otterpocket"
+  ],
   "author": "David Munro",
   "license": "MIT",
-  "type": "module",
   "bugs": {
     "url": "https://github.com/devmunro/otterpocket/issues"
   },
