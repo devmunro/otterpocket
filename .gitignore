@@ -24,7 +24,6 @@ yarn-debug.log*
 yarn-error.log*
 
 # Playground specific 
-otterweb
 otterweb/node_modules/
 otterweb/dist/
 otterweb/.env
