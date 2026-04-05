@@ -1,6 +1,6 @@
 {
   "name": "otterpocket",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "A small, friendly React state library with guided helper methods.",
   "type": "module",
   "main": "./dist/src/index.js",
