@@ -1,16 +1,33 @@
 # OtterPocket
 
-OtterPocket is a small, friendly React state library with a tiny API, built-in helpers, selector support, and optional persistence.
+<p align="center">
+  <img src="./otterweb/src/assets/otter.jpg" alt="OtterPocket otter" width="320" />
+</p>
 
-It is meant to feel lighter than Redux and more welcoming than lower-level store libraries.
+<p align="center">
+  Small, friendly React state management with a tiny API, useful helpers, selectors, and optional persistence.
+</p>
 
-## Installation
+OtterPocket is for app and UI state that should feel simple to read and simple to update.
+
+Use it for:
+
+- counters
+- todo lists
+- filters
+- dark mode
+- saved settings
+- session or header state
+
+It aims to feel lighter than Redux and more guided than lower-level stores.
+
+## Install
 
 ```bash
 npm install otterpocket react
 ```
 
-## Quick Start
+## Quick Example
 
 ```tsx
 import { createPocket, persist } from "otterpocket";
@@ -18,7 +35,8 @@ import { createPocket, persist } from "otterpocket";
 const pocket = createPocket(
   {
     count: 0,
-    todos: [] as string[],
+    todos: [] as { id: number; label: string; done: boolean }[],
+    todoFilter: "all" as "all" | "open" | "done",
     darkMode: false,
   },
   {
@@ -26,107 +44,168 @@ const pocket = createPocket(
   }
 );
 
-export function App() {
-  const count = pocket.use("count");
-  const darkMode = pocket.use((state) => state.darkMode);
-  const todoCount = pocket.use((state) => state.todos.length);
+function TodoApp() {
+  const todos = pocket.use("todos");
+  const todoFilter = pocket.use("todoFilter");
+  const darkMode = pocket.use("darkMode");
+
+  const visibleTodos = todos.filter((todo) => {
+    if (todoFilter === "open") return !todo.done;
+    if (todoFilter === "done") return todo.done;
+    return true;
+  });
+
+  const toggleTodo = (id: number) => {
+    pocket.set(
+      "todos",
+      pocket.get("todos").map((todo) =>
+        todo.id === id ? { ...todo, done: !todo.done } : todo
+      )
+    );
+  };
 
   return (
     <div data-theme={darkMode ? "dark" : "light"}>
-      <h1>Count: {count}</h1>
-      <p>Todos: {todoCount}</p>
-      <button onClick={() => pocket.inc("count")}>+</button>
-      <button onClick={() => pocket.push("todos", "Collect shells")}>
-        Add todo
-      </button>
-      <button onClick={() => pocket.toggle("darkMode")}>
-        Toggle theme
-      </button>
+      <h1>OtterPocket</h1>
+
+      <div>
+        <button onClick={() => pocket.inc("count")}>Count up</button>
+        <button onClick={() => pocket.toggle("darkMode")}>Toggle dark mode</button>
+        <button onClick={() => pocket.set("todoFilter", "open")}>Open only</button>
+      </div>
+
+      <ul>
+        {visibleTodos.map((todo) => (
+          <li key={todo.id}>
+            <button onClick={() => toggleTodo(todo.id)}>{todo.done ? "✓" : "○"}</button>
+            <span>{todo.label}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 ```
 
-## Highlights
+## Why People Would Use It
 
-- `use("key")` for simple keyed subscriptions
-- `use(selector)` for derived subscriptions
-- `persist("name")` for localStorage-backed state
-- `inc`, `dec`, `toggle`, `push`, `remove`, `reset`, `resetAll`
-- `getState`, `setState`, and selector subscriptions for more advanced usage
+- `use("key")` keeps simple state simple
+- `use(selector)` handles derived values without extra setup
+- helpers like `inc`, `toggle`, `push`, and `remove` cut boilerplate
+- `persist()` gives you localStorage-backed state without extra wiring
+- `createPocketStore()` works outside React too
 
-## API
+## Core API
 
 ### `createPocket(initialState, options?)`
 
 Creates a React-ready store.
 
+```ts
+const pocket = createPocket({
+  count: 0,
+  darkMode: false,
+});
+```
+
 Options:
 
-- `debug?: boolean` logs changed keys during development
-- `persist?: persist("storage-key", options)` enables persistence
+- `debug?: boolean`
+- `persist?: persist("storage-key", options)`
 
-Returns:
+### `pocket.use("key")`
 
-- `use(key)` subscribe to a single key in React
-- `use(selector, equalityFn?)` subscribe to derived state
-- `get(key)` read one value
-- `getState()` read the whole state object
-- `getSelected(selector)` read a derived value outside React
-- `set(key, valueOrUpdater)` update one key
-- `setState(partialOrUpdater)` merge a partial state object
-- `subscribe(listener, key?)` subscribe to the whole store or a specific key
-- `subscribeToSelector(selector, listener, equalityFn?)` subscribe to derived values outside React
-- `toggle(key)` flip a boolean value
-- `inc(key)` increment a numeric value
-- `dec(key)` decrement a numeric value
-- `push(key, item)` append to an array
-- `remove(key, indexOrPredicate)` remove from an array
-- `reset(key)` reset one key to its initial value
-- `resetAll()` reset the entire store
+Subscribe to one key in a React component.
+
+```ts
+const count = pocket.use("count");
+```
+
+### `pocket.use(selector, equalityFn?)`
+
+Subscribe to derived state.
+
+```ts
+const doneCount = pocket.use((state) => state.todos.filter((todo) => todo.done).length);
+```
+
+### `pocket.set("key", valueOrUpdater)`
+
+Update one key.
+
+```ts
+pocket.set("count", 4);
+pocket.set("count", (current) => current + 1);
+```
+
+### `pocket.get("key")`
+
+Read a current value outside render.
+
+```ts
+const todos = pocket.get("todos");
+```
+
+### Helpers
+
+```ts
+pocket.inc("count");
+pocket.dec("count");
+pocket.toggle("darkMode");
+pocket.push("todos", { id: 1, label: "Ship docs", done: false });
+pocket.remove("todos", (todo) => todo.done);
+pocket.reset("count");
+pocket.resetAll();
+```
+
+### `pocket.subscribe(listener, key?)`
+
+Listen to state changes.
+
+```ts
+const stop = pocket.subscribe((state) => {
+  localStorage.setItem("settings", JSON.stringify(state));
+});
+```
 
 ### `persist(key, options?)`
 
-Creates a persistence config you can pass into `createPocket` or `createPocketStore`.
+Create persistence config for `createPocket()` or `createPocketStore()`.
 
-Options:
+```ts
+const pocket = createPocket(
+  { darkMode: false },
+  {
+    persist: persist("otter-ui"),
+  }
+);
+```
 
-- `storage?: { getItem, setItem, removeItem? }`
-- `partialize?: (state) => partialState`
+## Outside React
 
-## Example: Store Access Outside React
+OtterPocket also exposes a core store for non-React usage.
 
 ```ts
 import { createPocketStore, persist } from "otterpocket/core";
 
-const pocket = createPocketStore(
+const store = createPocketStore(
   { count: 0, filter: "all" },
   {
     persist: persist("otter-store"),
   }
 );
 
-const stop = pocket.subscribeToSelector(
+const stop = store.subscribeToSelector(
   (state) => `${state.filter}:${state.count}`,
   (nextValue) => {
     console.log("Selected value changed:", nextValue);
   }
 );
 
-pocket.inc("count");
+store.inc("count");
 stop();
-```
-
-## Scripts
-
-```bash
-npm run build
-npm test
 ```
 
 ## Notes
 
 - React is a peer dependency.
-- The package ships built files from `dist/`.
-- Keyed subscriptions only fire for keys that changed.
-- Selector subscriptions only fire when the selected value changes.

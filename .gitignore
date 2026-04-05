@@ -24,7 +24,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # Playground specific 
-my-app
-my-app/node_modules/
-my-app/dist/
-my-app/.env
+otterweb
+otterweb/node_modules/
+otterweb/dist/
+otterweb/.env
